@@ -1,0 +1,49 @@
+# Local infrastructure for development.
+#
+#   docker compose up -d          start MongoDB + Redis
+#   docker compose down           stop them (data is kept in named volumes)
+#   docker compose down -v        stop and DELETE all data
+#
+# This file starts the two dependencies ONLY. The backend and frontend run on
+# the host with `npm run dev`, so you get fast reloads and readable stack
+# traces. Nothing here is production configuration.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: emailcamp-mongo
+    restart: unless-stopped
+    ports:
+      # Deliberately NOT the default 27017, so this cannot collide with -- or be
+      # mistaken for -- another project's MongoDB already running on this machine.
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: emailcamp-redis
+    restart: unless-stopped
+    # appendonly keeps the queue across restarts. Without it, a restart loses
+    # queued jobs -- recoverable (the reaper re-enqueues orphaned claims) but
+    # needlessly slow.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:
+  redis-data:

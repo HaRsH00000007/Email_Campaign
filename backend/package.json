@@ -1,0 +1,38 @@
+{
+  "name": "email-campaigning-backend",
+  "version": "1.0.0",
+  "description": "Standalone bulk email campaigning utility — Gmail transport, BullMQ queue, reply tracking.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "start:api": "ROLES=api node src/server.js",
+    "start:worker": "ROLES=worker node src/server.js",
+    "start:scheduler": "ROLES=scheduler node src/server.js",
+    "ensure-indexes": "node scripts/ensureIndexes.js",
+    "dedupe": "node scripts/dedupeEmailMessages.js",
+    "dlq": "node scripts/emailDlq.js",
+    "create-user": "node scripts/createUser.js",
+    "test": "node --test \"test/*.test.js\"",
+    "lint": "node --check src/server.js && echo \"syntax ok\""
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bullmq": "^5.76.10",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.1",
+    "multer": "^2.1.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0"
+  }
+}

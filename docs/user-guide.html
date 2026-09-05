@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Email Campaigning — Simple User Guide</title>
+<!--
+  Source document for docs/Email-Campaigning-User-Guide.pdf
+
+  Regenerate the PDF after editing this file:
+
+    "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless ^
+      --disable-gpu --no-pdf-header-footer ^
+      --print-to-pdf="docs\Email-Campaigning-User-Guide.pdf" ^
+      "docs\user-guide.html"
+-->
+<style>
+  @page { size: A4; margin: 13mm 15mm 11mm 15mm; }
+
+  :root {
+    --ink:      #14181f;
+    --body:     #333a45;
+    --muted:    #6b7482;
+    --rule:     #dfe3e9;
+    --accent:   #1f5fbf;
+    --accent-bg:#eef4fd;
+    --warn-bg:  #fff8e6;
+    --warn-br:  #e0a300;
+    --ok-bg:    #eef8f0;
+    --ok-br:    #2f8a45;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.45;
+    color: var(--body);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3 { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-size: 14pt;
+    margin: 15px 0 9px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--accent);
+    break-after: avoid;
+  }
+  h3 {
+    font-size: 11pt;
+    margin: 13px 0 5px;
+    break-after: avoid;
+  }
+  p  { margin: 0 0 7px; }
+  ul, ol { margin: 0 0 9px; padding-left: 19px; }
+  li { margin-bottom: 3px; }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--ink); }
+
+  .page { break-after: auto; }
+  .cover { break-after: page; }
+  .cheatsheet { break-before: page; }
+  section > h2:first-child { margin-top: 0; }
+
+  /* ---------- cover ---------- */
+  .cover {
+    height: 252mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  .cover .mark {
+    width: 54px; height: 54px;
+    margin: 0 auto 26px;
+    border-radius: 13px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 24pt;
+    line-height: 54px;
+    font-weight: 600;
+  }
+  .cover h1 {
+    font-size: 27pt;
+    margin: 0 0 8px;
+    letter-spacing: -0.4px;
+  }
+  .cover .sub {
+    font-size: 14pt;
+    color: var(--accent);
+    font-weight: 500;
+    margin: 0 0 22px;
+  }
+  .cover .desc {
+    max-width: 112mm;
+    margin: 0 auto;
+    color: var(--muted);
+    font-size: 11pt;
+  }
+  .cover .foot {
+    margin-top: 34px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    width: 78mm;
+    margin-left: auto; margin-right: auto;
+    color: var(--muted);
+    font-size: 9pt;
+  }
+
+  /* ---------- blocks ---------- */
+  .note, .warn, .ok {
+    padding: 8px 11px;
+    margin: 9px 0;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    font-size: 9.4pt;
+    break-inside: avoid;
+  }
+  .warn { border-left-color: var(--warn-br); background: var(--warn-bg); }
+  .ok   { border-left-color: var(--ok-br);   background: var(--ok-bg); }
+  .note p:last-child, .warn p:last-child, .ok p:last-child { margin-bottom: 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 7px 0 11px;
+    font-size: 9.3pt;
+  }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th {
+    text-align: left;
+    background: #f4f6f9;
+    color: var(--ink);
+    font-weight: 600;
+    padding: 5px 8px;
+    border-bottom: 1.5px solid var(--rule);
+  }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  td:first-child { font-weight: 500; color: var(--ink); }
+
+  .steps { counter-reset: st; list-style: none; padding-left: 0; }
+  .steps > li {
+    counter-increment: st;
+    position: relative;
+    padding-left: 26px;
+    margin-bottom: 7px;
+  }
+  .steps > li::before {
+    content: counter(st);
+    position: absolute; left: 0; top: 1px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 8.4pt;
+    font-weight: 600;
+    text-align: center;
+    line-height: 18px;
+  }
+
+  .flow {
+    margin: 12px 0;
+    padding: 12px 14px;
+    background: #f7f9fc;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    break-inside: avoid;
+  }
+  .flow div { padding: 2px 0; font-size: 10pt; color: var(--ink); font-weight: 500; }
+  .flow .arw { color: var(--accent); font-weight: 600; padding-left: 3px; }
+
+  .lead { color: var(--muted); font-size: 10.2pt; margin-bottom: 12px; }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: #eaeef4;
+    color: var(--ink);
+    font-size: 8.6pt;
+    font-weight: 600;
+  }
+  .card-grid { display: flex; gap: 10px; margin: 9px 0; break-inside: avoid; }
+  .card-grid > div {
+    flex: 1;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 10px 12px;
+    background: #fff;
+  }
+  .card-grid h3 { margin-top: 0; }
+  .card-grid p { font-size: 9.5pt; margin-bottom: 0; }
+  .ui { color: var(--ink); font-weight: 600; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <div class="mark">&#9993;</div>
+  <h1>Email Campaigning Platform</h1>
+  <p class="sub">Simple User Guide</p>
+  <p class="desc">
+    A practical guide to uploading your leads, writing outreach emails, sending them
+    from your own Gmail accounts, and tracking who replies &mdash; no technical
+    knowledge needed.
+  </p>
+  <div class="foot">
+    Written for marketing and outreach teams<br>
+    No coding required
+  </div>
+</section>
+
+<!-- ============ 1 &amp; 2 ============ -->
+<section>
+  <h2>1. What this tool is</h2>
+  <p class="lead">
+    A workspace for running cold-outreach email campaigns from start to finish.
+  </p>
+  <p>
+    You bring a list of contacts and the message you want to send. The platform sends
+    that message to each person individually from your own Gmail account, spaced out
+    over time so it looks like normal human sending rather than a mass blast.
+  </p>
+  <p>
+    Then it watches your inbox for you. When someone replies, the platform notices,
+    marks that person as interested, and <strong>automatically stops sending them
+    follow-ups</strong> &mdash; so nobody is ever chased after they have already answered.
+  </p>
+
+  <h3>What it does for you</h3>
+  <ul>
+    <li><strong>Personalises every email</strong> &mdash; any column in your spreadsheet
+        (first name, company, job title) can be dropped into the message.</li>
+    <li><strong>Tests two versions of a pitch</strong> against each other, and
+        <strong>sends polite follow-ups</strong> to people who did not reply.</li>
+    <li><strong>Tracks the outcome of every single email</strong> &mdash; delivered,
+        replied, wrong address, out-of-office.</li>
+    <li><strong>Exports everything to a spreadsheet</strong> whenever you need it.</li>
+  </ul>
+
+  <h3>What it deliberately does not do</h3>
+  <p>Worth knowing up front, so you are not waiting for something that will not arrive:</p>
+  <ul>
+    <li><strong>No open or click tracking.</strong> You will not see who opened the email
+        or clicked a link. Replies are the only signal of interest.</li>
+    <li><strong>No built-in unsubscribe list.</strong> The platform will not automatically
+        stop emailing someone who asks to be removed &mdash; see the best-practice
+        section, because this one matters legally.</li>
+    <li><strong>Gmail accounts only</strong> as sending addresses.</li>
+  </ul>
+
+  <h2 style="margin-top:22px">2. Getting started</h2>
+
+  <h3>Opening the platform</h3>
+  <p>
+    Your administrator will give you a web address to open in your browser. On a machine
+    set up for local use this is usually <strong>http://localhost:3000</strong>. There is
+    nothing to install &mdash; it runs in the browser like any other website.
+  </p>
+
+  <h3>Signing in</h3>
+  <ol class="steps">
+    <li>Open the address. You land on a <span class="ui">Sign in</span> card.</li>
+    <li>Enter your <strong>email address</strong> and <strong>password</strong>, then press
+        <span class="ui">Sign in</span>.</li>
+    <li>If you have not been given an account yet, press
+        <span class="ui">Create an account</span> and fill in your name, email, and a
+        password of <strong>at least 10 characters</strong>.</li>
+  </ol>
+
+  <div class="note">
+    <p><strong>After signing in</strong> you land on the <span class="ui">Mailboxes</span>
+    page, because connecting a sending account is the first thing that has to happen
+    before any campaign can go out.</p>
+  </div>
+</section>
+
+<!-- ============ 3 &amp; 4 ============ -->
+<section>
+  <h2>3. Finding your way around</h2>
+  <p class="lead">
+    There are only three places to go. They are listed down the left-hand side of every
+    screen.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th style="width:28%">Section</th><th>What it is for</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Campaigns</td>
+        <td>Every campaign you have created, with its live results &mdash; how many were
+            delivered, how many replied, and your reply rate. This is your home base once
+            things are running.</td>
+      </tr>
+      <tr>
+        <td>Lead lists</td>
+        <td>Your contact lists. Upload a spreadsheet here and it becomes a list you can
+            point a campaign at.</td>
+      </tr>
+      <tr>
+        <td>Mailboxes</td>
+        <td>The Gmail accounts your campaigns send from, and the daily and hourly sending
+            limits for each one.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Your own email address and a <span class="ui">Sign out</span> button sit at the
+     bottom of the same panel.</p>
+
+  <h2 style="margin-top:22px">4. Working with leads</h2>
+
+  <p>A <strong>lead list</strong> is simply a spreadsheet of people you want to contact.
+     You upload it once and reuse it across campaigns.</p>
+
+  <h3>Preparing your file</h3>
+  <ul>
+    <li>Save it as <strong>CSV</strong> or <strong>Excel</strong> (.csv, .xlsx or .xls).</li>
+    <li>Put the headings in the <strong>first row</strong>.</li>
+    <li>There <strong>must</strong> be a column called <strong>email</strong>. Without it
+        the upload cannot work.</li>
+    <li>Add any other columns you want to use in the message &mdash; first name, company,
+        job title, city, and so on.</li>
+  </ul>
+
+  <div class="ok">
+    <p><strong>Every column becomes a personalisation field.</strong> If your sheet has a
+    column called <em>firstName</em>, you can write <strong>{{firstName}}</strong> in your
+    email and each person sees their own name in its place.</p>
+  </div>
+
+  <h3>Uploading</h3>
+  <ol class="steps">
+    <li>Go to <span class="ui">Lead lists</span>.</li>
+    <li>Give the list a clear name. <em>Q1 SaaS founders</em> is far more useful in six
+        weeks than <em>list 2</em>.</li>
+    <li>Choose your file and press <span class="ui">Upload</span>.</li>
+    <li>A progress bar shows the import. Large files take a moment.</li>
+    <li>When the status turns to <span class="pill">ready</span>, the list can be used.</li>
+  </ol>
+
+  <p>The table then shows the list name, how many leads it holds, and <strong>which
+     columns were found</strong>. Check that column list, because those are exactly the
+     personalisation fields available to you.</p>
+
+  <div class="warn">
+    <p><strong>Some rows are skipped on purpose.</strong> Anyone with a missing or
+    malformed email address, and any address that appears twice in the same file, is
+    dropped during import. If the final count is lower than your spreadsheet's row count,
+    that is why &mdash; and it is a good sign, not a problem.</p>
+  </div>
+
+  <h3>How to organise your lists</h3>
+  <ul>
+    <li><strong>One list per audience</strong>, not one giant list. A message written for
+        heads of talent should not go to the same list as one written for founders.</li>
+    <li><strong>Keep lists small and focused.</strong> Relevance beats volume every time
+        in cold outreach.</li>
+    <li><strong>Clean the file before uploading.</strong> Fix blank first names &mdash; an
+        email that opens &ldquo;Hi ,&rdquo; is worse than one with no name at all.</li>
+  </ul>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+  <h2>5. Creating a campaign</h2>
+  <p class="lead">
+    Press <span class="ui">New campaign</span> on the Campaigns page. A five-step guide
+    walks you through it, and you can move back and forth freely before anything is sent.
+  </p>
+
+  <h3>Step 1 &mdash; Mailboxes</h3>
+  <p>Tick the Gmail account or accounts this campaign should send from. If you tick
+     several, the platform rotates between them so each stays under its own daily limit.
+     Spreading volume across a few mailboxes is much safer than pushing one hard.</p>
+
+  <h3>Step 2 &mdash; Leads</h3>
+  <p>Choose which lead list to email. Underneath, the platform shows the exact
+     personalisation fields available from that list &mdash; worth a glance before you
+     start writing.</p>
+
+  <h3>Step 3 &mdash; Templates</h3>
+  <p>Name the campaign, then write your email. This is the step that matters most, and it
+     is covered in detail in the next section.</p>
+
+  <h3>Step 4 &mdash; Schedule</h3>
+  <p>Decide how fast to send. There are two modes:</p>
+  <table>
+    <thead><tr><th style="width:24%">Mode</th><th>How it behaves</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Spread<br><span class="pill">recommended</span></td>
+        <td>Your list is spread evenly across a number of days. You choose how many days,
+            how often a batch is released, and a random gap between individual emails (for
+            example 60&ndash;180 seconds). The randomness is the point &mdash; it looks
+            like a person typing, not a machine firing.</td>
+      </tr>
+      <tr>
+        <td>Fixed rate</td>
+        <td>Sends continuously at a set rate. Faster, but noticeably more mechanical. Use
+            it only when you have a reason to.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>In Spread mode a short summary shows <strong>how many emails per batch, per day, and
+     per mailbox per day</strong> your settings actually produce. If a warning says sending
+     will run behind schedule, your gaps are too long for the volume &mdash; shorten the
+     gap, lengthen the interval, or add another mailbox. This step also holds the
+     <strong>Rewrite each email with AI</strong> option, explained next.</p>
+
+  <h3>Step 5 &mdash; Review</h3>
+  <p>A summary of every choice you made: mailboxes, list, number of pitch variants,
+     follow-ups, pacing. Check it properly &mdash; this is the last screen before real
+     emails go to real people.</p>
+
+  <div class="warn">
+    <p><strong>Watch for the personalisation warning.</strong> If you used a field that
+    does not exist in your lead list &mdash; <em>{{firstname}}</em> when the column is
+    actually <em>{{firstName}}</em> &mdash; a warning lists it here. Left unfixed, that
+    spot arrives <strong>completely blank</strong> in every email. Go back and fix it.</p>
+  </div>
+
+  <p>Finally, choose:</p>
+  <ul>
+    <li><span class="ui">Save as draft</span> &mdash; saved, nothing sent. Safe.</li>
+    <li><span class="ui">Save and start sending</span> &mdash; the campaign goes live and
+        sending begins on your schedule.</li>
+  </ul>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+  <h2>6. Writing your emails</h2>
+
+  <h3>Subject and body</h3>
+  <p>Each email has a <strong>subject line</strong> and a <strong>body</strong>. Write them
+     as you would write to one person, and use personalisation fields wherever a detail
+     should change per recipient. Read the result aloud before you send it &mdash; if it
+     sounds like a template, it will be treated like one.</p>
+  <div class="flow">
+    <div>Hi {{firstName}},</div>
+    <div style="padding-top:8px">I noticed {{company}} has been hiring quickly this
+      quarter&hellip;</div>
+  </div>
+
+  <h3>Testing two versions (A/B)</h3>
+  <p>Press <span class="ui">Add variant</span> to write a second version of the pitch. Each
+     lead is randomly given one of them, which splits your list roughly in half. After a
+     few days, compare the reply rates and keep writing in the style of the winner.</p>
+
+  <h3>Follow-ups</h3>
+  <p>Most replies to cold outreach come from the second or third email, not the first.
+     Leave <span class="ui">Send follow-ups to people who do not reply</span> ticked and
+     add one or two steps:</p>
+  <ul>
+    <li>Set how long to <strong>wait</strong> after the previous email. Three days is a
+        sensible starting point.</li>
+    <li><strong>Leave the subject line blank</strong> and the follow-up attaches to the
+        original email thread, which reads far more naturally than a fresh email.</li>
+    <li>Keep it genuinely short. Two or three lines.</li>
+  </ul>
+  <div class="ok">
+    <p><strong>Follow-ups stop the moment someone replies.</strong> This is automatic and
+    cannot be forgotten. Nobody is chased after they have answered you.</p>
+  </div>
+
+  <h3>The AI helpers</h3>
+  <p>There are two, and they are separate:</p>
+  <table>
+    <thead><tr><th style="width:30%">Feature</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Draft with AI<br><span class="muted">(Step 3)</span></td>
+        <td>Describe your campaign in a sentence &mdash; <em>intro for a recruiting tool,
+            aimed at heads of talent</em> &mdash; and press <span class="ui">Draft 3</span>.
+            Three draft emails appear; press <span class="ui">Use this</span> on one to
+            load it into the editor, then edit it yourself. It is a starting point, never a
+            finished email.</td>
+      </tr>
+      <tr>
+        <td>Rewrite each email<br><span class="muted">(Step 4)</span></td>
+        <td>Your template becomes a reference, and each recipient gets a slightly reworded
+            version of it &mdash; same offer, same call to action, same links, different
+            phrasing. This helps avoid every recipient receiving an identical email.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong>Both AI features must be switched on by your administrator.</strong> If
+    drafting does nothing, or rewriting seems to have no effect, that setup has not been
+    done &mdash; ask your admin. Rewriting is designed to fail safely: if it cannot run, or
+    the result looks wrong, your original wording is sent instead. A campaign never stalls
+    because of it.</p>
+  </div>
+
+</section>
+
+<!-- ============ 7 &amp; 8 ============ -->
+<section>
+  <h2>7. Mailboxes &mdash; your sending accounts</h2>
+
+  <p>A <strong>mailbox</strong> is a real Gmail account that your campaigns send from.
+     Emails genuinely come from that address, and replies land in that inbox exactly as
+     normal.</p>
+
+  <h3>Connecting one</h3>
+  <ol class="steps">
+    <li>Go to <span class="ui">Mailboxes</span> and press
+        <span class="ui">Connect Gmail</span>.</li>
+    <li>Google asks you to sign in and approve access.</li>
+    <li><strong>Accept every permission requested.</strong> If you skip the read
+        permission, the platform cannot see replies &mdash; which means follow-ups will
+        keep going to people who have already answered you.</li>
+    <li>You are returned to the platform and the mailbox appears as
+        <span class="pill">connected</span>.</li>
+  </ol>
+
+  <div class="warn">
+    <p><strong>This step may not be available yet.</strong> Connecting Gmail requires a
+    Google configuration your administrator has to complete first. If pressing
+    <span class="ui">Connect Gmail</span> shows an error, that setup is outstanding. It is
+    not something you can fix from the interface &mdash; contact your administrator.</p>
+  </div>
+
+  <h3>Sending limits</h3>
+  <p>Each mailbox shows how many emails it has sent <strong>today</strong> and
+     <strong>this hour</strong> against its limit, and you can set both limits yourself.</p>
+
+  <div class="note">
+    <p><strong>The single most important setting in this tool.</strong> Gmail technically
+    permits a high daily volume, but sending anywhere near that from a cold-outreach
+    account will land you in spam folders and can get the address blocked.</p>
+    <p style="margin-top:6px"><strong>Start at 30&ndash;50 per day.</strong> If you need
+    more volume, connect more mailboxes rather than raising the limit. A brand-new address
+    should start lower still &mdash; 5 to 10 a day, built up over several weeks.</p>
+  </div>
+
+  <p>The mailbox card also warns you if a permission is missing or if Google reported an
+     error. Both are fixed by disconnecting and reconnecting the account.</p>
+
+  <h2 style="margin-top:20px">8. Monitoring your campaign</h2>
+
+  <p>Open any campaign from the <span class="ui">Campaigns</span> list to see its results.
+     Figures refresh automatically while the page is open.</p>
+
+  <h3>What each result means</h3>
+  <table>
+    <thead><tr><th style="width:26%">Result</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Queued</td><td>Waiting its turn. Not sent yet.</td></tr>
+      <tr><td>Delivered</td><td>Reached a real inbox. This is the number your reply rate is
+        measured against.</td></tr>
+      <tr><td>Replied</td><td>A genuine human reply. Follow-ups to this person have
+        stopped.</td></tr>
+      <tr><td>Wrong address</td><td>The address does not exist. Remove it from your source
+        list.</td></tr>
+      <tr><td>Bounced</td><td>A temporary problem &mdash; mailbox full, server busy. May
+        succeed later.</td></tr>
+      <tr><td>Auto-reply</td><td>Out-of-office or similar. Counts as delivered, but
+        <strong>not</strong> as a reply.</td></tr>
+      <tr><td>Failed</td><td>Could not be sent. Usually a permission or limit problem on
+        the mailbox.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The buttons you will use</h3>
+  <ul>
+    <li><span class="ui">Pause</span> / <span class="ui">Start</span> &mdash; stop or resume
+        sending at any time. Pause immediately if anything looks wrong.</li>
+    <li><span class="ui">Check replies</span> &mdash; fetch new replies right now instead of
+        waiting for the next automatic check.</li>
+    <li><span class="ui">Export CSV</span> &mdash; download every recipient and outcome as a
+        spreadsheet.</li>
+    <li>Click any recipient row to read the <strong>full conversation</strong> with that
+        person: what you sent, and what they wrote back.</li>
+  </ul>
+
+  <h3>What to check after launching</h3>
+  <ol class="steps">
+    <li><strong>Within the first hour:</strong> is anything actually being delivered? If
+        every row says <em>Failed</em>, pause and speak to your administrator.</li>
+    <li><strong>Day one:</strong> how many say <em>Wrong address</em>? More than a handful
+        means the list is stale. Pause and clean it &mdash; continuing damages your sending
+        reputation.</li>
+    <li><strong>Every day:</strong> filter to <em>Replied</em> and answer those people
+        personally. This is the entire point of the campaign.</li>
+  </ol>
+</section>
+
+<!-- ============ 9 &amp; 10 ============ -->
+<section>
+  <h2>9. A workflow that works</h2>
+
+  <div class="flow">
+    <div>Prepare your lead file <span class="arw">&darr;</span></div>
+    <div>Upload it and check the column list <span class="arw">&darr;</span></div>
+    <div>Connect a mailbox and set a safe daily limit <span class="arw">&darr;</span></div>
+    <div>Create the campaign <span class="arw">&darr;</span></div>
+    <div>Write the pitch and follow-ups <span class="arw">&darr;</span></div>
+    <div>Set pacing &mdash; spread over several days <span class="arw">&darr;</span></div>
+    <div>Review, and fix any field warnings <span class="arw">&darr;</span></div>
+    <div><strong>Test on 10&ndash;20 leads first</strong> <span class="arw">&darr;</span></div>
+    <div>Launch to the full list <span class="arw">&darr;</span></div>
+    <div>Check results daily <span class="arw">&darr;</span></div>
+    <div>Reply personally to everyone who responds</div>
+  </div>
+
+  <div class="ok">
+    <p><strong>Never skip the test run.</strong> Upload a small list of 10&ndash;20
+    contacts &mdash; including your own address &mdash; and send to that first. A broken
+    personalisation field or an awkward sentence costs you nothing on 20 people, and costs
+    you the whole list on 2,000.</p>
+  </div>
+
+  <h2 style="margin-top:20px">10. Best practices</h2>
+
+  <ul>
+    <li><strong>Keep lists clean.</strong> Remove old and bounced addresses. A list full of
+        dead addresses damages your ability to reach the live ones.</li>
+    <li><strong>Send less than you can.</strong> 30&ndash;50 a day per mailbox. Volume comes
+        from more mailboxes, never from a higher limit.</li>
+    <li><strong>Be relevant.</strong> If the message would not make sense to the person
+        receiving it, they are on the wrong list. Irrelevant email is what gets marked as
+        spam.</li>
+    <li><strong>Reply fast.</strong> Interest fades quickly. Check replies daily and answer
+        the same day where you can.</li>
+  </ul>
+
+  <h3 style="margin-top:14px">Staying on the right side of the law</h3>
+  <p>Cold outreach is regulated &mdash; GDPR in the UK and EU, CAN-SPAM in the US, and
+     similar rules elsewhere. In practice:</p>
+  <ul>
+    <li><strong>Include a clear way to opt out</strong> in your email text, and honour it.</li>
+    <li><strong>Say who you are</strong> &mdash; a real company name and a real postal
+        address.</li>
+    <li><strong>Only contact people with a legitimate business reason</strong> to hear from
+        you.</li>
+  </ul>
+
+  <div class="warn">
+    <p><strong>Opt-outs are handled by you, not by the platform.</strong> There is no
+    automatic unsubscribe list in this tool. When somebody asks to be removed, you must
+    <strong>delete them from your source spreadsheet yourself</strong> so they are not
+    included in any future upload, and reply to confirm. Missing this is the most common
+    compliance mistake, so put a routine around it from day one.</p>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section>
+  <h2>11. Troubleshooting</h2>
+
+  <table>
+    <thead><tr><th style="width:32%">Problem</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Cannot sign in</td>
+        <td>Check the email and password. New passwords must be at least 10 characters. If
+            it still fails, the platform itself may not be running &mdash; ask your
+            administrator.</td>
+      </tr>
+      <tr>
+        <td>Signed out unexpectedly</td>
+        <td>Your session expired. Sign in again.</td>
+      </tr>
+      <tr>
+        <td>Upload rejected, or the list is empty</td>
+        <td>The file almost certainly has no column named <strong>email</strong>. Check the
+            first row of the spreadsheet and re-upload.</td>
+      </tr>
+      <tr>
+        <td>Fewer leads than rows in my file</td>
+        <td>Expected. Invalid addresses and duplicates within the file are skipped
+            automatically.</td>
+      </tr>
+      <tr>
+        <td>Import status says <em>failed</em></td>
+        <td>Delete the list, check the file opens correctly as CSV or Excel, and upload
+            again.</td>
+      </tr>
+      <tr>
+        <td>&ldquo;No usable mailbox&rdquo; in the campaign wizard</td>
+        <td>No Gmail account is connected, or the connected one lacks send permission. Go
+            to Mailboxes and connect or reconnect.</td>
+      </tr>
+      <tr>
+        <td>Connect Gmail shows an error</td>
+        <td>Google access has not been configured for this installation. This is an
+            administrator task and cannot be resolved from the interface.</td>
+      </tr>
+      <tr>
+        <td>&ldquo;Read permission missing&rdquo; warning</td>
+        <td>A permission was skipped during connection. Replies cannot be detected, so
+            follow-ups will not stop. Disconnect the mailbox, reconnect, and accept
+            everything Google asks for.</td>
+      </tr>
+      <tr>
+        <td>Campaign is active but nothing sends</td>
+        <td>Check, in order: the mailbox is <span class="pill">connected</span>; its daily
+            or hourly limit is not already reached; the campaign is not paused; and, in
+            Spread mode, that the next batch time has actually arrived. If all of that
+            looks fine, ask your administrator to check the sending service.</td>
+      </tr>
+      <tr>
+        <td>Everything says <em>Failed</em></td>
+        <td>Pause the campaign immediately. This points at the mailbox connection rather
+            than your content. Reconnect the mailbox and read its error message.</td>
+      </tr>
+      <tr>
+        <td>Lots of <em>Wrong address</em></td>
+        <td>The list is out of date. Pause, clean the list, and re-upload. Continuing to
+            send harms your sending reputation.</td>
+      </tr>
+      <tr>
+        <td>AI drafting does nothing</td>
+        <td>The AI service has not been configured by your administrator. Everything else
+            works normally without it.</td>
+      </tr>
+      <tr>
+        <td>No replies at all after several days</td>
+        <td>Not a fault. Review the subject line, whether the message is genuinely relevant
+            to that audience, and whether the list is well targeted.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 12 CHEAT SHEET ============ -->
+<section class="cheatsheet">
+  <h2>12. Quick reference</h2>
+  <p class="lead">One page. Keep it to hand.</p>
+
+  <h3>Leads</h3>
+  <ul>
+    <li>CSV or Excel, headings in row one, <strong>must</strong> have an
+        <strong>email</strong> column.</li>
+    <li>Every other column becomes a <strong>{{field}}</strong> you can use in the email.</li>
+    <li>Invalid and duplicate addresses are skipped automatically.</li>
+    <li>Wait for <span class="pill">ready</span> before using the list.</li>
+    <li>One list per audience. Check the column list after upload.</li>
+  </ul>
+
+  <h3>Mailboxes</h3>
+  <ul>
+    <li>Real Gmail accounts. Replies arrive in that inbox.</li>
+    <li><strong>Accept every Google permission</strong>, or replies cannot be detected.</li>
+    <li><strong>30&ndash;50 per day.</strong> More volume means more mailboxes, not a
+        higher limit.</li>
+    <li>New address? Start at 5&ndash;10 a day and build up over weeks.</li>
+    <li>Requires administrator setup before first use.</li>
+  </ul>
+
+  <h3>Campaigns</h3>
+  <ul>
+    <li>Five steps: Mailboxes &rarr; Leads &rarr; Templates &rarr; Schedule &rarr; Review.</li>
+    <li>Two pitch variants gives you a free A/B test.</li>
+    <li>A blank follow-up subject keeps it in the same email thread.</li>
+    <li>Follow-ups stop automatically when someone replies.</li>
+    <li><strong>Spread</strong> pacing over several days beats fixed rate.</li>
+  </ul>
+
+  <h3>Launching</h3>
+  <ul>
+    <li>Fix every personalisation warning on the Review step first.</li>
+    <li><strong>Test on 10&ndash;20 leads, including yourself.</strong></li>
+    <li><span class="ui">Save as draft</span> sends nothing.
+        <span class="ui">Save and start sending</span> goes live.</li>
+  </ul>
+
+  <h3>Monitoring</h3>
+  <ul>
+    <li><strong>Delivered</strong> = reached a real inbox, and is the basis of your reply
+        rate.</li>
+    <li><strong>Wrong address</strong> = permanent. <strong>Bounced</strong> = temporary.
+        <strong>Auto-reply</strong> is not a reply.</li>
+    <li>Pause the moment something looks wrong.</li>
+    <li>Filter to <strong>Replied</strong> daily and answer personally.</li>
+    <li><span class="ui">Export CSV</span> for reporting.</li>
+  </ul>
+
+  <div class="note" style="margin-top:16px">
+    <p><strong>The three rules that matter most</strong></p>
+    <p style="margin-top:5px">
+      1. Send slowly &mdash; 30&ndash;50 a day per mailbox.<br>
+      2. Always test on a small list first.<br>
+      3. Remove opt-out requests from your source file yourself; the platform will not do
+         it for you.
+    </p>
+  </div>
+</section>
+
+</body>
+</html>
