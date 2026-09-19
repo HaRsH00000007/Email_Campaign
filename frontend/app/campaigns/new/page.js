@@ -1,17 +1,49 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  CheckRow,
+  EmptyState,
+  Field,
+  SectionTitle,
+  Stat,
+  Stepper,
+  useToast,
+} from "@/components/ui";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Gauge,
+  Inbox,
+  Mail,
+  Plus,
+  Send,
+  Sparkles,
+  Target,
+  Trash,
+  Users,
+} from "@/components/icons";
 
 const STEPS = ["Mailboxes", "Leads", "Templates", "Schedule", "Review"];
 
 function Wizard() {
   const router = useRouter();
+  const toast = useToast();
+
   const [step, setStep] = useState(0);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingRefs, setLoadingRefs] = useState(true);
 
   const [mailboxes, setMailboxes] = useState([]);
   const [lists, setLists] = useState([]);
@@ -46,10 +78,11 @@ function Wizard() {
         setMailboxes(m.data.filter((x) => x.connected && x.canSend));
         setLists(l.data.filter((x) => x.importState === "done" && x.leadCount > 0));
       })
-      .catch((e) => setErr(e.message));
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoadingRefs(false));
   }, []);
 
-  const selectedList = lists.find((l) => l._id === listId);
+  const selectedList = useMemo(() => lists.find((l) => l._id === listId), [lists, listId]);
 
   // The schedule preview uses the SAME arithmetic the scheduler uses, so what
   // is shown here cannot drift from what actually happens.
@@ -100,8 +133,9 @@ function Wizard() {
         withFollowup: followupEnabled,
       });
       setDrafts(r.data);
+      toast.ok(`${r.data.length} drafts ready.`);
     } catch (e) {
-      setErr(e.message);
+      toast.error(e.message);
     } finally {
       setAiBusy(false);
     }
@@ -124,6 +158,16 @@ function Wizard() {
         }
         return next;
       });
+    }
+    toast.ok("Draft applied to a pitch variant.");
+  };
+
+  const copyToken = async (token) => {
+    try {
+      await navigator.clipboard.writeText(token);
+      toast.ok(`Copied ${token}`);
+    } catch {
+      toast.error("Could not copy — select and copy it manually.");
     }
   };
 
@@ -149,6 +193,7 @@ function Wizard() {
         uniqueEmails,
         status: activate ? "active" : "draft",
       });
+      toast.ok(activate ? "Campaign created and sending." : "Saved as a draft.");
       router.push(`/campaigns/${r.data._id}`);
     } catch (e) {
       setErr(e.message);
@@ -159,115 +204,163 @@ function Wizard() {
   const toggleAccount = (id) =>
     setAccountIds((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
 
+  const validPitches = pitches.filter((p) => p.subject.trim() && p.html.trim()).length;
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>New campaign</h1>
+          <p className="sub">
+            Five steps: pick the senders, the audience, what you say, and how fast it goes out.
+          </p>
         </div>
-        <button onClick={() => router.push("/campaigns")}>Cancel</button>
+        <Button onClick={() => router.push("/campaigns")}>Cancel</Button>
       </div>
 
-      <div className="steps">
-        {STEPS.map((s, i) => (
-          <div key={s} className={`s ${i === step ? "on" : i < step ? "done" : ""}`}>
-            {i + 1}. {s}
-          </div>
-        ))}
-      </div>
+      <Stepper steps={STEPS} current={step} onJump={setStep} />
 
-      {err && <div className="banner error">{err}</div>}
+      {err && <Banner kind="error" onClose={() => setErr("")}>{err}</Banner>}
 
+      {/* Wrapper keeps the sticky footer pinned to the bottom of the viewport
+          even on the short steps. */}
+      <div className="wizard-body">
       {/* ---- 0: mailboxes ---- */}
       {step === 0 && (
-        <div className="card">
-          <h2>Which mailboxes should send?</h2>
-          {!mailboxes.length ? (
-            <div className="banner warn">
-              No usable mailbox. Connect a Gmail account under Mailboxes first.
-            </div>
+        <Card className="anim-in">
+          <SectionTitle
+            icon={Inbox}
+            title="Which mailboxes should send?"
+            hint="With more than one selected, sends rotate round-robin so each mailbox stays under its own limit."
+            right={
+              accountIds.length ? (
+                <Badge kind="brand" dot={false}>{accountIds.length} selected</Badge>
+              ) : null
+            }
+          />
+
+          {loadingRefs ? (
+            <div className="tiny faint">Loading mailboxes…</div>
+          ) : !mailboxes.length ? (
+            <EmptyState
+              icon={Inbox}
+              title="No usable mailbox"
+              action={
+                <Button variant="primary" onClick={() => router.push("/mailboxes")}>
+                  Go to Mailboxes
+                </Button>
+              }
+            >
+              Connect a Gmail account with send permission before building a campaign.
+            </EmptyState>
           ) : (
-            <>
-              {mailboxes.map((m) => (
-                <label
-                  key={m._id}
-                  style={{ display: "flex", gap: 9, alignItems: "center", marginBottom: 8 }}
-                >
-                  <input
-                    type="checkbox"
-                    style={{ width: "auto" }}
-                    checked={accountIds.includes(m._id)}
-                    onChange={() => toggleAccount(m._id)}
-                  />
-                  <span>
+            mailboxes.map((m) => (
+              <CheckRow
+                key={m._id}
+                checked={accountIds.includes(m._id)}
+                onChange={() => toggleAccount(m._id)}
+                title={
+                  <span className="cluster">
                     {m.email}
-                    {!m.canReadReplies && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        no reply tracking
-                      </span>
-                    )}
+                    {!m.canReadReplies && <Badge kind="warn">no reply tracking</Badge>}
                   </span>
-                </label>
-              ))}
-              <div className="tiny muted" style={{ marginTop: 10 }}>
-                With more than one selected, sends rotate round-robin so each mailbox
-                stays under its own limit.
-              </div>
-            </>
+                }
+              >
+                {m.usage
+                  ? `${m.usage.today}/${m.usage.dailyLimit} sent today · ${m.usage.hourlyLimit}/hour cap`
+                  : null}
+              </CheckRow>
+            ))
           )}
-        </div>
+        </Card>
       )}
 
       {/* ---- 1: leads ---- */}
       {step === 1 && (
-        <div className="card">
-          <h2>Who are you emailing?</h2>
-          {!lists.length ? (
-            <div className="banner warn">
-              No ready lead lists. Upload one under Lead lists first.
-            </div>
+        <Card className="anim-in">
+          <SectionTitle icon={Users} title="Who are you emailing?" />
+
+          {loadingRefs ? (
+            <div className="tiny faint">Loading lists…</div>
+          ) : !lists.length ? (
+            <EmptyState
+              icon={Users}
+              title="No ready lead lists"
+              action={
+                <Button variant="primary" onClick={() => router.push("/leads")}>
+                  Upload a list
+                </Button>
+              }
+            >
+              Upload a CSV or Excel file under Lead lists, then come back here.
+            </EmptyState>
           ) : (
-            <div className="field">
-              <label htmlFor="list">Lead list</label>
-              <select id="list" value={listId} onChange={(e) => setListId(e.target.value)}>
-                <option value="">Select a list...</option>
-                {lists.map((l) => (
-                  <option key={l._id} value={l._id}>
-                    {l.name} ({l.leadCount.toLocaleString()} leads)
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <Field label="Lead list" htmlFor="list">
+                <select id="list" value={listId} onChange={(e) => setListId(e.target.value)}>
+                  <option value="">Select a list…</option>
+                  {lists.map((l) => (
+                    <option key={l._id} value={l._id}>
+                      {l.name} ({l.leadCount.toLocaleString()} leads)
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {selectedList && (
+                <div className="anim-in">
+                  <div className="grid c3" style={{ marginBottom: 16 }}>
+                    <Stat label="Leads" value={selectedList.leadCount} icon={Users} accent />
+                    <Stat
+                      label="Variables"
+                      value={selectedList.columns.length}
+                      icon={Copy}
+                      foot="usable in templates"
+                    />
+                  </div>
+                  <div className="eyebrow" style={{ marginBottom: 7 }}>
+                    Available variables — click to copy
+                  </div>
+                  <div>
+                    {selectedList.columns.map((col) => (
+                      <button
+                        type="button"
+                        className="token"
+                        key={col}
+                        onClick={() => copyToken(`{{${col}}}`)}
+                      >
+                        {`{{${col}}}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-          {selectedList && (
-            <div className="tiny muted">
-              Available variables:{" "}
-              <span className="mono">
-                {selectedList.columns.map((c) => `{{${c}}}`).join("  ")}
-              </span>
-            </div>
-          )}
-        </div>
+        </Card>
       )}
 
       {/* ---- 2: templates ---- */}
       {step === 2 && (
-        <>
-          <div className="card">
-            <div className="field">
-              <label htmlFor="cname">Campaign name</label>
+        <div className="anim-in">
+          <Card>
+            <Field label="Campaign name" htmlFor="cname" hint="Only you see this — it never appears in an email.">
               <input
                 id="cname"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Q1 outreach"
+                placeholder="Q1 outreach — SaaS founders"
               />
-            </div>
-          </div>
+            </Field>
+          </Card>
 
-          <div className="card">
-            <h2>Draft with AI (optional)</h2>
+          <Card>
+            <SectionTitle
+              icon={Sparkles}
+              title="Draft with AI"
+              hint="Optional. Describe the offer and the audience; pick whichever draft reads best."
+            />
             <div className="row">
               <div>
                 <input
@@ -275,110 +368,179 @@ function Wizard() {
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder="Intro for a recruiting tool, aimed at heads of talent"
+                  onKeyDown={(e) => e.key === "Enter" && aiPrompt.trim() && generate()}
                 />
               </div>
-              <div style={{ flex: "0 0 auto" }}>
-                <button onClick={generate} disabled={aiBusy || !aiPrompt.trim()}>
-                  {aiBusy ? "Drafting..." : "Draft 3"}
-                </button>
+              <div className="shrink">
+                <Button
+                  variant="soft"
+                  icon={Sparkles}
+                  onClick={generate}
+                  loading={aiBusy}
+                  disabled={!aiPrompt.trim()}
+                >
+                  {aiBusy ? "Drafting…" : "Draft 3 options"}
+                </Button>
               </div>
             </div>
-            {drafts.map((d, i) => (
-              <div key={i} className="card" style={{ marginTop: 10, marginBottom: 0 }}>
-                <strong className="small">{d.subject}</strong>
-                <pre className="tiny muted" style={{ whiteSpace: "pre-wrap", margin: "6px 0" }}>
-                  {d.html}
-                </pre>
-                <button className="sm" onClick={() => useDraft(d)}>
-                  Use this
-                </button>
-              </div>
-            ))}
-          </div>
 
-          <div className="card">
-            <h2>Pitch variants</h2>
-            <p className="tiny muted">
-              With more than one, a variant is picked at random per lead so the list
-              splits for A/B testing.
-            </p>
+            {drafts.length > 0 && (
+              <div className="grid stagger" style={{ marginTop: 14 }}>
+                {drafts.map((d, i) => (
+                  <div
+                    key={i}
+                    className="card hoverable"
+                    style={{ margin: 0, background: "var(--surface-2)" }}
+                  >
+                    <div className="cluster" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                      <strong className="small">{d.subject}</strong>
+                      <Badge kind="brand" dot={false}>Draft {i + 1}</Badge>
+                    </div>
+                    <pre
+                      className="tiny muted"
+                      style={{ whiteSpace: "pre-wrap", margin: "0 0 10px", maxHeight: 180, overflow: "auto" }}
+                    >
+                      {d.html}
+                    </pre>
+                    <Button size="sm" icon={Check} onClick={() => useDraft(d)}>
+                      Use this draft
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <SectionTitle
+              icon={Mail}
+              title="Pitch variants"
+              hint="With more than one, a variant is picked at random per lead, so the list splits for A/B testing."
+              right={<Badge kind={validPitches ? "ok" : "warn"} dot={false}>{validPitches} ready</Badge>}
+            />
+
             {pitches.map((p, i) => (
-              <div key={i} style={{ marginBottom: 14 }}>
-                <div className="field">
-                  <label>Variant {i + 1} &mdash; subject</label>
+              <div
+                key={i}
+                style={{
+                  padding: 15,
+                  marginBottom: 12,
+                  border: "1px solid var(--rule)",
+                  borderRadius: "var(--r-md)",
+                  background: "var(--surface-2)",
+                }}
+              >
+                <div className="cluster" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+                  <span className="eyebrow">Variant {i + 1}</span>
+                  {pitches.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon={Trash}
+                      onClick={() => setPitches((v) => v.filter((_, j) => j !== i))}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+
+                <Field label="Subject">
                   <input
                     type="text"
                     value={p.subject}
+                    placeholder="Quick question about {{company}}"
                     onChange={(e) =>
-                      setPitches((v) =>
-                        v.map((x, j) => (j === i ? { ...x, subject: e.target.value } : x))
-                      )
+                      setPitches((v) => v.map((x, j) => (j === i ? { ...x, subject: e.target.value } : x)))
                     }
                   />
-                </div>
-                <div className="field">
-                  <label>Body</label>
+                </Field>
+                <Field label="Body">
                   <textarea
                     value={p.html}
                     onChange={(e) =>
-                      setPitches((v) =>
-                        v.map((x, j) => (j === i ? { ...x, html: e.target.value } : x))
-                      )
+                      setPitches((v) => v.map((x, j) => (j === i ? { ...x, html: e.target.value } : x)))
                     }
-                    placeholder={"Hi {{firstName}},\n\n..."}
+                    placeholder={"Hi {{firstName}},\n\n…"}
                   />
-                </div>
-                {pitches.length > 1 && (
-                  <button
-                    className="sm danger"
-                    onClick={() => setPitches((v) => v.filter((_, j) => j !== i))}
-                  >
-                    Remove variant
-                  </button>
-                )}
+                </Field>
               </div>
             ))}
-            <button
-              className="sm"
+
+            <Button
+              icon={Plus}
+              size="sm"
               onClick={() => setPitches((v) => [...v, { subject: "", html: "" }])}
             >
               Add variant
-            </button>
-          </div>
+            </Button>
 
-          <div className="card">
-            <label style={{ display: "flex", gap: 9, alignItems: "center" }}>
-              <input
-                type="checkbox"
-                style={{ width: "auto" }}
-                checked={followupEnabled}
-                onChange={(e) => setFollowupEnabled(e.target.checked)}
-              />
-              <span>Send follow-ups to people who do not reply</span>
-            </label>
+            {selectedList && (
+              <div style={{ marginTop: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 7 }}>
+                  Variables from {selectedList.name}
+                </div>
+                {selectedList.columns.map((col) => (
+                  <button type="button" className="token" key={col} onClick={() => copyToken(`{{${col}}}`)}>
+                    {`{{${col}}}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CheckRow
+              checked={followupEnabled}
+              onChange={setFollowupEnabled}
+              title="Send follow-ups to people who do not reply"
+            >
+              Each delay is measured from the previous email. The whole sequence stops the
+              moment the lead replies.
+            </CheckRow>
 
             {followupEnabled && (
-              <div style={{ marginTop: 12 }}>
+              <div className="anim-in" style={{ marginTop: 14 }}>
                 {steps.map((s, i) => (
-                  <div key={i} style={{ marginBottom: 14 }}>
+                  <div
+                    key={i}
+                    style={{
+                      padding: 15,
+                      marginBottom: 12,
+                      border: "1px solid var(--rule)",
+                      borderRadius: "var(--r-md)",
+                      background: "var(--surface-2)",
+                    }}
+                  >
+                    <div className="cluster" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+                      <span className="eyebrow">
+                        <Clock size={11} /> Follow-up {i + 1}
+                      </span>
+                      {steps.length > 1 && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          icon={Trash}
+                          onClick={() => setSteps((v) => v.filter((_, j) => j !== i))}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+
                     <div className="row">
-                      <div>
-                        <label>Wait (days)</label>
+                      <Field label="Wait (days)">
                         <input
                           type="number"
                           min="0"
                           value={s.delayDays}
                           onChange={(e) =>
                             setSteps((v) =>
-                              v.map((x, j) =>
-                                j === i ? { ...x, delayDays: Number(e.target.value) } : x
-                              )
+                              v.map((x, j) => (j === i ? { ...x, delayDays: Number(e.target.value) } : x))
                             )
                           }
                         />
-                      </div>
-                      <div>
-                        <label>Hours</label>
+                      </Field>
+                      <Field label="Hours">
                         <input
                           type="number"
                           min="0"
@@ -386,15 +548,16 @@ function Wizard() {
                           value={s.delayHours}
                           onChange={(e) =>
                             setSteps((v) =>
-                              v.map((x, j) =>
-                                j === i ? { ...x, delayHours: Number(e.target.value) } : x
-                              )
+                              v.map((x, j) => (j === i ? { ...x, delayHours: Number(e.target.value) } : x))
                             )
                           }
                         />
-                      </div>
-                      <div style={{ flex: 3 }}>
-                        <label>Subject (blank keeps the pitch subject, so it threads)</label>
+                      </Field>
+                      <Field
+                        label="Subject"
+                        hint="Leave blank to keep the pitch subject, so it threads."
+                        className=""
+                      >
                         <input
                           type="text"
                           value={s.subject}
@@ -404,57 +567,46 @@ function Wizard() {
                             )
                           }
                         />
-                      </div>
+                      </Field>
                     </div>
-                    <div className="field">
-                      <label>Follow-up {i + 1} body</label>
+
+                    <Field label="Body">
                       <textarea
                         value={s.html}
                         onChange={(e) =>
-                          setSteps((v) =>
-                            v.map((x, j) => (j === i ? { ...x, html: e.target.value } : x))
-                          )
+                          setSteps((v) => v.map((x, j) => (j === i ? { ...x, html: e.target.value } : x)))
                         }
+                        placeholder={"Just floating this back to the top of your inbox…"}
                       />
-                    </div>
-                    {steps.length > 1 && (
-                      <button
-                        className="sm danger"
-                        onClick={() => setSteps((v) => v.filter((_, j) => j !== i))}
-                      >
-                        Remove step
-                      </button>
-                    )}
+                    </Field>
                   </div>
                 ))}
-                <button
-                  className="sm"
+
+                <Button
+                  size="sm"
+                  icon={Plus}
                   onClick={() =>
-                    setSteps((v) => [
-                      ...v,
-                      { delayDays: 3, delayHours: 0, subject: "", html: "" },
-                    ])
+                    setSteps((v) => [...v, { delayDays: 3, delayHours: 0, subject: "", html: "" }])
                   }
                 >
                   Add step
-                </button>
-                <div className="tiny muted" style={{ marginTop: 8 }}>
-                  Each delay is measured from the previous email. The whole sequence stops
-                  the moment the lead replies.
-                </div>
+                </Button>
               </div>
             )}
-          </div>
-        </>
+          </Card>
+        </div>
       )}
 
       {/* ---- 3: schedule ---- */}
       {step === 3 && (
-        <>
-          <div className="card">
-            <h2>Pacing</h2>
-            <div className="field">
-              <label htmlFor="mode">Mode</label>
+        <div className="anim-in">
+          <Card>
+            <SectionTitle
+              icon={Gauge}
+              title="Pacing"
+              hint="Spread mode drip-feeds the list the way a person would. It is almost always the better choice."
+            />
+            <Field label="Mode" htmlFor="mode">
               <select
                 id="mode"
                 value={pacing.mode}
@@ -463,196 +615,207 @@ function Wizard() {
                 <option value="spread">Spread evenly over a number of days</option>
                 <option value="rate">Fixed rate per minute</option>
               </select>
-            </div>
+            </Field>
 
             {pacing.mode === "spread" ? (
               <div className="row">
-                <div>
-                  <label>Over how many days</label>
+                <Field label="Over how many days">
                   <input
                     type="number"
                     min="1"
                     max="60"
                     value={pacing.durationDays}
-                    onChange={(e) =>
-                      setPacing({ ...pacing, durationDays: Number(e.target.value) })
-                    }
+                    onChange={(e) => setPacing({ ...pacing, durationDays: Number(e.target.value) })}
                   />
-                </div>
-                <div>
-                  <label>Release a batch every (hours)</label>
+                </Field>
+                <Field label="Batch every (hours)">
                   <input
                     type="number"
                     min="1"
                     max="24"
                     value={pacing.intervalHours}
-                    onChange={(e) =>
-                      setPacing({ ...pacing, intervalHours: Number(e.target.value) })
-                    }
+                    onChange={(e) => setPacing({ ...pacing, intervalHours: Number(e.target.value) })}
                   />
-                </div>
-                <div>
-                  <label>Min gap (sec)</label>
+                </Field>
+                <Field label="Min gap (sec)">
                   <input
                     type="number"
                     min="1"
                     value={pacing.minDelaySec}
-                    onChange={(e) =>
-                      setPacing({ ...pacing, minDelaySec: Number(e.target.value) })
-                    }
+                    onChange={(e) => setPacing({ ...pacing, minDelaySec: Number(e.target.value) })}
                   />
-                </div>
-                <div>
-                  <label>Max gap (sec)</label>
+                </Field>
+                <Field label="Max gap (sec)">
                   <input
                     type="number"
                     min="1"
                     value={pacing.maxDelaySec}
-                    onChange={(e) =>
-                      setPacing({ ...pacing, maxDelaySec: Number(e.target.value) })
-                    }
+                    onChange={(e) => setPacing({ ...pacing, maxDelaySec: Number(e.target.value) })}
                   />
-                </div>
+                </Field>
               </div>
             ) : (
-              <div className="banner">
-                Rate mode sends continuously at the campaign rate. Spread mode is
-                usually better for deliverability.
-              </div>
+              <Banner kind="info">
+                Rate mode sends continuously at the campaign rate. Spread mode is usually
+                better for deliverability.
+              </Banner>
             )}
-          </div>
+
+            {Number(pacing.minDelaySec) > Number(pacing.maxDelaySec) && (
+              <Banner kind="error">The minimum gap cannot be larger than the maximum gap.</Banner>
+            )}
+          </Card>
 
           {schedule && (
-            <div className="card">
-              <h2>What this means</h2>
-              <div className="grid c3">
-                <div className="stat">
-                  <div className="k">Per batch</div>
-                  <div className="v">{schedule.leadsPerBatch}</div>
-                </div>
-                <div className="stat">
-                  <div className="k">Per day</div>
-                  <div className="v">{schedule.perDay}</div>
-                </div>
-                <div className="stat">
-                  <div className="k">Per mailbox / day</div>
-                  <div className="v">{Math.round(schedule.perDayPerMailbox)}</div>
-                </div>
+            <Card className="anim-in">
+              <SectionTitle icon={Target} title="What this actually means" />
+              <div className="grid c3 stagger">
+                <Stat label="Per batch" value={schedule.leadsPerBatch} icon={Send} />
+                <Stat label="Per day" value={schedule.perDay} icon={Clock} accent />
+                <Stat
+                  label="Per mailbox / day"
+                  value={Math.round(schedule.perDayPerMailbox)}
+                  icon={Inbox}
+                />
               </div>
+
               {schedule.batchOverruns && (
-                <div className="banner warn" style={{ marginTop: 12 }}>
+                <Banner kind="warn">
                   A batch of {schedule.leadsPerBatch} takes about{" "}
-                  {Math.round(schedule.batchDrainSec / 3600)}h to drain at this gap, but a
-                  new one is released every {schedule.intervalHours}h. Sending will run
-                  behind the stated duration. Shorten the gap, lengthen the interval, or
-                  add mailboxes.
-                </div>
+                  {Math.round(schedule.batchDrainSec / 3600)}h to drain at this gap, but a new
+                  one is released every {schedule.intervalHours}h. Sending will run behind the
+                  stated duration — shorten the gap, lengthen the interval, or add mailboxes.
+                </Banner>
               )}
-            </div>
+            </Card>
           )}
 
-          <div className="card">
-            <label style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
-              <input
-                type="checkbox"
-                style={{ width: "auto", marginTop: 4 }}
-                checked={uniqueEmails}
-                onChange={(e) => setUniqueEmails(e.target.checked)}
-              />
-              <span>
-                <strong>Rewrite each email with AI</strong>
-                <div className="tiny muted">
-                  Your template becomes a reference; each recipient gets a reworded
-                  version with the same offer, CTA and links. Needs an AI key. If a
-                  rewrite fails or looks wrong, the original is sent instead &mdash; it can
-                  never block a send.
-                </div>
-              </span>
-            </label>
-          </div>
-        </>
+          <Card>
+            <CheckRow
+              checked={uniqueEmails}
+              onChange={setUniqueEmails}
+              title={
+                <span className="cluster">
+                  Rewrite each email with AI{" "}
+                  <Badge kind="brand" dot={false}>
+                    <Sparkles size={11} /> AI
+                  </Badge>
+                </span>
+              }
+            >
+              Your template becomes a reference; each recipient gets a reworded version with the
+              same offer, CTA and links. Needs an AI key. If a rewrite fails or looks wrong, the
+              original is sent instead — it can never block a send.
+            </CheckRow>
+          </Card>
+        </div>
       )}
 
       {/* ---- 4: review ---- */}
       {step === 4 && (
-        <div className="card">
-          <h2>Review</h2>
-          <table>
-            <tbody>
-              <tr>
-                <td className="muted">Name</td>
-                <td>
-                  <strong>{name}</strong>
-                </td>
-              </tr>
-              <tr>
-                <td className="muted">Mailboxes</td>
-                <td>
-                  {mailboxes
-                    .filter((m) => accountIds.includes(m._id))
-                    .map((m) => m.email)
-                    .join(", ")}
-                </td>
-              </tr>
-              <tr>
-                <td className="muted">Lead list</td>
-                <td>
-                  {selectedList?.name} ({selectedList?.leadCount.toLocaleString()} leads)
-                </td>
-              </tr>
-              <tr>
-                <td className="muted">Pitch variants</td>
-                <td>{pitches.filter((p) => p.subject && p.html).length}</td>
-              </tr>
-              <tr>
-                <td className="muted">Follow-ups</td>
-                <td>{followupEnabled ? `${steps.length} step(s)` : "off"}</td>
-              </tr>
-              <tr>
-                <td className="muted">Pacing</td>
-                <td>
-                  {pacing.mode === "spread"
-                    ? `over ${pacing.durationDays} day(s), batch every ${pacing.intervalHours}h, ${pacing.minDelaySec}-${pacing.maxDelaySec}s apart`
-                    : "fixed rate"}
-                </td>
-              </tr>
-              <tr>
-                <td className="muted">AI rewrite</td>
-                <td>{uniqueEmails ? "on" : "off"}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="anim-in">
+          <div className="grid c4 stagger" style={{ marginBottom: 14 }}>
+            <Stat label="Leads" value={selectedList?.leadCount ?? 0} icon={Users} accent />
+            <Stat label="Mailboxes" value={accountIds.length} icon={Inbox} />
+            <Stat label="Pitch variants" value={validPitches} icon={Mail} />
+            <Stat
+              label="Follow-ups"
+              value={followupEnabled ? steps.length : 0}
+              icon={Clock}
+              foot={followupEnabled ? "steps in sequence" : "disabled"}
+            />
+          </div>
 
-          {tokenProblems.length > 0 && (
-            <div className="banner warn" style={{ marginTop: 14 }}>
-              <strong>These variables are not in the lead list</strong> and will render
-              empty:
-              <ul style={{ margin: "6px 0 0 18px" }}>
-                {tokenProblems.map((p, i) => (
-                  <li key={i} className="small">
-                    {p.where}: <span className="mono">{p.tokens.join(", ")}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <Card>
+            <SectionTitle icon={Check} title="Review before sending" />
+            <table className="plain">
+              <tbody>
+                <tr>
+                  <td className="muted small" style={{ width: 150 }}>Name</td>
+                  <td className="strong">{name}</td>
+                </tr>
+                <tr>
+                  <td className="muted small">Sending from</td>
+                  <td className="small break">
+                    {mailboxes
+                      .filter((m) => accountIds.includes(m._id))
+                      .map((m) => m.email)
+                      .join(", ")}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted small">Lead list</td>
+                  <td className="small">
+                    {selectedList?.name} ({selectedList?.leadCount.toLocaleString()} leads)
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted small">Pacing</td>
+                  <td className="small">
+                    {pacing.mode === "spread"
+                      ? `Spread over ${pacing.durationDays} day${
+                          pacing.durationDays === 1 ? "" : "s"
+                        }, a batch every ${pacing.intervalHours}h, ${pacing.minDelaySec}–${
+                          pacing.maxDelaySec
+                        }s apart`
+                      : "Fixed rate"}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted small">AI rewrite</td>
+                  <td>
+                    {uniqueEmails ? <Badge kind="brand">On</Badge> : <Badge>Off</Badge>}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {tokenProblems.length > 0 && (
+              <Banner kind="warn">
+                <div>
+                  <strong>These variables are not in the lead list</strong> and will render empty:
+                  <ul style={{ margin: "7px 0 0 18px", padding: 0 }}>
+                    {tokenProblems.map((p, i) => (
+                      <li key={i} className="small">
+                        {p.where}: <span className="mono">{p.tokens.join(", ")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Banner>
+            )}
+          </Card>
         </div>
       )}
 
-      <div className="btnrow" style={{ marginTop: 18 }}>
-        {step > 0 && <button onClick={() => setStep((s) => s - 1)}>Back</button>}
+      </div>
+
+      {/* ---- sticky nav ---- */}
+      <div className="wizard-foot">
+        {step > 0 && (
+          <Button icon={ChevronLeft} onClick={() => setStep((s) => s - 1)}>
+            Back
+          </Button>
+        )}
+        <div className="grow">
+          <span className="tiny faint">
+            Step {step + 1} of {STEPS.length} · {STEPS[step]}
+          </span>
+        </div>
+
         {step < STEPS.length - 1 ? (
-          <button className="primary" disabled={!canAdvance()} onClick={() => setStep((s) => s + 1)}>
-            Next
-          </button>
+          <Button variant="primary" disabled={!canAdvance()} onClick={() => setStep((s) => s + 1)}>
+            Continue
+            <ChevronRight size={16} />
+          </Button>
         ) : (
           <>
-            <button onClick={() => save(false)} disabled={busy}>
+            <Button onClick={() => save(false)} disabled={busy}>
               Save as draft
-            </button>
-            <button className="primary" onClick={() => save(true)} disabled={busy}>
-              {busy ? "Starting..." : "Save and start sending"}
-            </button>
+            </Button>
+            <Button variant="primary" icon={Send} loading={busy} onClick={() => save(true)}>
+              {busy ? "Starting…" : "Save and start sending"}
+            </Button>
           </>
         )}
       </div>
@@ -662,7 +825,7 @@ function Wizard() {
 
 export default function Page() {
   return (
-    <Shell>
+    <Shell crumb="New campaign">
       <Wizard />
     </Shell>
   );
