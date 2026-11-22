@@ -28,11 +28,33 @@ const {
   pickTemplate,
   fieldsToObject,
 } = require("../services/campaigns/runner");
-const { tryConsume, release, limitsFor } = require("../services/rateLimit/mailboxLimiter");
+const {
+  tryConsume,
+  release,
+  cooldown,
+  limitsFor,
+} = require("../services/rateLimit/mailboxLimiter");
 const { createEmailWorker, deadLetter, MAX_ATTEMPTS } = require("../services/queue/emailQueue");
 const { isEnabled: redisEnabled } = require("../services/queue/client");
 
 let worker = null;
+
+const MAX_PARK_MS = 6 * 3600_000;
+
+// How long to re-park a job the mailbox would not let through.
+//
+// The jitter is load-bearing, not decoration. With N jobs queued for one
+// mailbox, a bare retryAfterMs wakes all N at the same millisecond; one wins
+// the spacing check and N-1 immediately re-park, and that thundering herd
+// repeats on every slot. Spreading the wake-ups over a short window turns an
+// O(N) stampede per send into roughly one contender per slot. We always wait at
+// least the full retryAfterMs -- jitter is added, never subtracted, so it can
+// never shorten the spacing guarantee.
+const reparkDelay = (retryAfterMs) => {
+  const base = Math.min(Math.max(Number(retryAfterMs) || 60_000, 1), MAX_PARK_MS);
+  const jitter = Math.floor(Math.random() * Math.min(5_000, Math.max(250, base * 0.1)));
+  return base + jitter;
+};
 
 // Build the subject and HTML for a claimed row. Pitch rows pick a variant;
 // follow-up rows resolve their step. Both are optionally rewritten per
@@ -137,17 +159,20 @@ const processEmailJob = async (job, token) => {
     return { failed: true };
   }
 
-  // -- Per-mailbox rate limit ------------------------------------------------
-  // Ask the mailbox's token bucket for a slot. If the mailbox is out of daily
-  // or hourly quota, PARK the job until the window rolls over. Crucially this
-  // does NOT consume a retry attempt: being rate limited is not a failure, and
-  // a mailbox that is over quota for the rest of the day would otherwise
-  // exhaust all its attempts in minutes and dead-letter a perfectly good email.
-  const account = await EmailAccount.findById(accountId).select("dailyLimit hourlyLimit").lean();
+  // -- Per-mailbox pacing ----------------------------------------------------
+  // Ask the mailbox for a send slot. A denial means one of: the 60s spacing has
+  // not elapsed, an optional hourly ceiling is full, or Google has put this
+  // mailbox on a cooldown. In every case PARK the job rather than failing it.
+  //
+  // Crucially this does NOT consume a retry attempt. Being paced is not a
+  // failure -- a mailbox under a long cooldown would otherwise exhaust all its
+  // attempts in minutes and dead-letter a perfectly good email.
+  const account = await EmailAccount.findById(accountId)
+    .select("hourlyLimit minSpacingMs")
+    .lean();
   const slot = await tryConsume(accountId, limitsFor(account));
   if (!slot.ok) {
-    const delay = Math.min(slot.retryAfterMs || 60_000, 6 * 3600_000);
-    await job.moveToDelayed(Date.now() + delay, token);
+    await job.moveToDelayed(Date.now() + reparkDelay(slot.retryAfterMs), token);
     throw new DelayedError();
   }
 
@@ -204,6 +229,26 @@ const processEmailJob = async (job, token) => {
   // We did not send, so hand the mailbox slot back either way.
   await release(accountId);
 
+  // GOOGLE SAID SLOW DOWN. This is the one restriction we must never try to
+  // out-wait by retrying harder. Park the WHOLE mailbox on a shared cooldown so
+  // every other worker and every other campaign using it defers on the same
+  // clock, then re-park this job without burning an attempt -- a send-limit
+  // trip can last many minutes, and spending all five attempts discovering that
+  // would dead-letter a perfectly deliverable email.
+  //
+  // This is a DEFERRAL, not a bypass: the cooldown length comes from Google's
+  // own Retry-After when it sent one.
+  if (result.rateLimited) {
+    const waitMs = Math.min(result.retryAfterMs || 15 * 60_000, MAX_PARK_MS);
+    await cooldown(accountId, waitMs, `gmail_${result.status ?? "rate_limit"}`);
+    console.warn(
+      `[worker] mailbox=${accountId} throttled by Gmail ` +
+        `(status=${result.status ?? "n/a"}): deferring ${Math.round(waitMs / 1000)}s -- ${result.error}`
+    );
+    await job.moveToDelayed(Date.now() + reparkDelay(waitMs), token);
+    throw new DelayedError();
+  }
+
   const attemptsSoFar = (job.attemptsMade ?? 0) + 1;
   const lastAttempt = attemptsSoFar >= MAX_ATTEMPTS;
 
@@ -253,4 +298,10 @@ const stopEmailWorker = async () => {
   }
 };
 
-module.exports = { startEmailWorker, stopEmailWorker, processEmailJob, composeEmail };
+module.exports = {
+  startEmailWorker,
+  stopEmailWorker,
+  processEmailJob,
+  composeEmail,
+  reparkDelay,
+};

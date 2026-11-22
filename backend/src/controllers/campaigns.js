@@ -9,7 +9,14 @@ const {
 const { sendFollowupBatch, resolveFollowupSteps } = require("../services/campaigns/runner");
 const { syncCampaignReplies } = require("../services/replies/replySync");
 const { recomputeCampaignStats, replyRate } = require("../services/campaigns/stats");
-const { computeSchedule } = require("../services/campaigns/pacing");
+const {
+  computeSchedule,
+  DEFAULT_MIN_DELAY_SEC,
+  DEFAULT_MAX_DELAY_SEC,
+  DEFAULT_DURATION_DAYS,
+  DEFAULT_INTERVAL_HOURS,
+} = require("../services/campaigns/pacing");
+const { DEFAULT_SPACING_MS } = require("../services/rateLimit/mailboxLimiter");
 const { getLeadCount } = require("../services/campaigns/leadCount");
 const { unresolvedTokens } = require("../services/personalization/templating");
 const { STATUS_LABEL } = require("../services/replies/statusSets");
@@ -41,15 +48,21 @@ const clamp = (v, lo, hi, d) => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
 };
 
+// Defaults mirror services/campaigns/pacing.js exactly. They are imported
+// rather than re-typed: two copies of "what a blank field means" drift, and the
+// drift shows up as a campaign silently pacing differently than its preview.
+//
+// NOTE this rebuilds the WHOLE pacing object, so a PATCH that sends only some
+// fields resets the rest to these defaults. Callers must send all five.
 const cleanPacing = (p) => {
   if (!p || typeof p !== "object") return undefined;
-  const minDelaySec = clamp(p.minDelaySec, 1, 300, 30);
-  let maxDelaySec = clamp(p.maxDelaySec, 1, 600, 120);
+  const minDelaySec = clamp(p.minDelaySec, 1, 300, DEFAULT_MIN_DELAY_SEC);
+  let maxDelaySec = clamp(p.maxDelaySec, 1, 600, DEFAULT_MAX_DELAY_SEC);
   if (maxDelaySec < minDelaySec) maxDelaySec = minDelaySec;
   return {
     mode: p.mode === "rate" ? "rate" : "spread",
-    durationDays: clamp(p.durationDays, 1, 60, 1),
-    intervalHours: clamp(p.intervalHours, 1, 24, 1),
+    durationDays: clamp(p.durationDays, 1, 60, DEFAULT_DURATION_DAYS),
+    intervalHours: clamp(p.intervalHours, 1, 24, DEFAULT_INTERVAL_HOURS),
     minDelaySec,
     maxDelaySec,
   };
@@ -149,7 +162,6 @@ const create = async (req, res) => {
     followup,
     pacing,
     sendRatePerMin,
-    dailyLimit,
     status,
     uniqueEmails,
   } = req.body || {};
@@ -188,7 +200,6 @@ const create = async (req, res) => {
     followup: { enabled: followup?.enabled ?? true, steps },
     ...(pacingCfg && { pacing: pacingCfg }),
     ...(sendRatePerMin !== undefined && { sendRatePerMin: clamp(sendRatePerMin, 1, 120, 20) }),
-    ...(dailyLimit !== undefined && { dailyLimit: clamp(dailyLimit, 1, 100000, 500) }),
     uniqueEmails: !!uniqueEmails,
     stats: { total, sent: 0, replied: 0, followupsSent: 0, failed: 0, bounced: 0, other: 0, queued: 0 },
     status: wantsActive ? "active" : "draft",
@@ -275,7 +286,9 @@ const update = async (req, res) => {
   if (b.name !== undefined) campaign.name = String(b.name).trim();
   if (b.uniqueEmails !== undefined) campaign.uniqueEmails = !!b.uniqueEmails;
   if (b.sendRatePerMin !== undefined) campaign.sendRatePerMin = clamp(b.sendRatePerMin, 1, 120, 20);
-  if (b.dailyLimit !== undefined) campaign.dailyLimit = clamp(b.dailyLimit, 1, 100000, 500);
+  // b.dailyLimit is accepted and IGNORED. An application daily quota no longer
+  // stops a campaign, so honouring it here would resurrect the behaviour via
+  // the API. Older clients that still send the field get a 200, not a 400.
 
   if (b.emailAccountIds !== undefined) {
     const ids = cleanAccountIds(b.emailAccountIds);
@@ -401,7 +414,12 @@ const previewSchedule = async (req, res) => {
   const total = leadListId ? await getLeadCount(leadListId) : 0;
   return res.json({
     ok: true,
-    data: computeSchedule(total, cleanPacing(pacing) || {}, mailboxCount || 1),
+    // Pass the mailbox spacing floor so the preview reports what will REALLY
+    // happen, not just what the campaign pacing asks for. Without it a 5s gap
+    // would be projected as 720/hour when the limiter will deliver 60.
+    data: computeSchedule(total, cleanPacing(pacing) || {}, mailboxCount || 1, {
+      mailboxSpacingMs: DEFAULT_SPACING_MS,
+    }),
   });
 };
 
