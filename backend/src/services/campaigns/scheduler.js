@@ -158,23 +158,26 @@ const tickCampaign = async (campaign) => {
     releaseSpreadBatches(campaign, await getLeadCount(campaign.leadListId), Date.now());
     await campaign.save().catch(() => {});
   } else {
-    // Rate mode: per-tick cap from the per-minute rate, bounded by the
-    // remaining daily allowance.
-    const perTick = Math.max(
+    // Rate mode: per-tick cap from the per-minute rate.
+    //
+    // NO DAILY ALLOWANCE IS APPLIED. This used to be bounded by
+    // `campaign.dailyLimit - progress.sentToday`, which silently drove the
+    // budget to 0 and left the campaign "active" but mute for the rest of the
+    // UTC day -- indistinguishable, from the outside, from a stall. A campaign
+    // now runs until its leads are exhausted, a human pauses it, or Google
+    // restricts the mailbox. Volume is governed where it belongs: by the
+    // per-mailbox spacing in services/rateLimit/mailboxLimiter.js, which paces
+    // the queue rather than stopping the campaign.
+    //
+    // progress.sentToday is still maintained, for display only.
+    const budget = Math.max(
       1,
       Math.round((campaign.sendRatePerMin || 20) * (TICK_INTERVAL_MS / 60000))
     );
-    const dailyRemaining = Math.max(
-      0,
-      (campaign.dailyLimit || 500) - (campaign.progress.sentToday || 0)
-    );
-    const budget = Math.min(perTick, dailyRemaining);
 
-    if (budget > 0) {
-      const r = await sendPitchBatch(campaign, budget);
-      pitched = r.sent;
-      if (r.quotaDenied) console.log(`[scheduler] ${campaign.name}: paused -- send quota denied`);
-    }
+    const r = await sendPitchBatch(campaign, budget);
+    pitched = r.sent;
+    if (r.quotaDenied) console.log(`[scheduler] ${campaign.name}: paused -- send quota denied`);
   }
 
   // Follow-ups. Throughput per tick is independent of the pitch pacing mode.

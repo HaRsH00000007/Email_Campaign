@@ -84,26 +84,38 @@ const emailCampaignSchema = new mongoose.Schema(
     },
 
     // ── Pacing ───────────────────────────────────────────────────────────────
-    //   "rate"   — send sendRatePerMin pitches/min up to dailyLimit.
+    //   "rate"   — send sendRatePerMin pitches/min, continuously.
     //   "spread" — distribute the whole list over durationDays, in batches
     //              released every intervalHours. Each batch drains one email at
     //              a time with a random minDelaySec-maxDelaySec gap between
     //              sends, rotating across mailboxes. Duration is a pacing
     //              TARGET, not a hard stop: leftover leads keep sending past it.
+    //
+    // Defaults give the house cadence: one batch holding the whole list
+    // (intervalHours 24), drained at a flat 60s gap = ~60/hour per mailbox.
+    // See services/campaigns/pacing.js.
     pacing: {
       mode: { type: String, enum: ["rate", "spread"], default: "spread" },
       durationDays: { type: Number, default: 1, min: 1, max: 60 },
-      intervalHours: { type: Number, default: 1, min: 1, max: 24 },
-      minDelaySec: { type: Number, default: 30, min: 1, max: 300 },
-      maxDelaySec: { type: Number, default: 120, min: 1, max: 600 },
+      intervalHours: { type: Number, default: 24, min: 1, max: 24 },
+      minDelaySec: { type: Number, default: 60, min: 1, max: 300 },
+      maxDelaySec: { type: Number, default: 60, min: 1, max: 600 },
     },
 
     // Used when pacing.mode === "rate".
     sendRatePerMin: { type: Number, default: 20, min: 1, max: 120 },
-    dailyLimit: { type: Number, default: 500, min: 1 },
+
+    // DEPRECATED AND NOT ENFORCED. Retained so existing documents keep loading
+    // and so the value is not silently destroyed on save. Nothing reads it:
+    // a campaign is no longer stopped by an application daily quota. Volume is
+    // governed by per-mailbox spacing (services/rateLimit/mailboxLimiter.js)
+    // and by Gmail's own limits. See scheduler.js tickCampaign().
+    dailyLimit: { type: Number, default: null },
 
     progress: {
       nextLeadIndex: { type: Number, default: 0 },
+      // DISPLAY ONLY. Reset at the UTC day boundary so the UI can show "N sent
+      // today". Nothing gates on it — see the dailyLimit note above.
       sentToday: { type: Number, default: 0 },
       dayKey: { type: String, default: "" }, // "YYYY-MM-DD", for the daily reset
       totalSent: { type: Number, default: 0 },

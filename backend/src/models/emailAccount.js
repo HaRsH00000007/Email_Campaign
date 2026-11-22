@@ -36,13 +36,26 @@ const emailAccountSchema = new mongoose.Schema(
     accessToken: { type: String, default: "", select: false },
     expiryMs: { type: Number, default: 0 },
 
-    // ── Per-mailbox send limits ──────────────────────────────────────────────
-    // NEW relative to the reference implementation, which only had global env
-    // limits. Gmail's ceiling differs by account type (~2000/day Workspace,
-    // ~500/day consumer) and a warming mailbox should send far less than
-    // either. null means "use the server default".
-    dailyLimit: { type: Number, default: null, min: 1, max: 5000 },
+    // ── Per-mailbox send pacing ──────────────────────────────────────────────
+    // null means "use the server default" for each of these.
+    //
+    // minSpacingMs is the PRIMARY control: the minimum gap between two sends
+    // from this mailbox, enforced atomically in Redis so no amount of
+    // concurrency, retrying or extra campaigns can shorten it. A mailbox being
+    // warmed up sets a larger gap than the server default; nothing else needs
+    // touching.
+    minSpacingMs: { type: Number, default: null, min: 0, max: 3_600_000 },
+
+    // An OPTIONAL extra brake. Usually redundant: minSpacingMs already caps the
+    // hour at 3600000/minSpacingMs. Only has an effect when set BELOW that, and
+    // then it stops the mailbox for the remainder of the clock hour.
     hourlyLimit: { type: Number, default: null, min: 1, max: 1000 },
+
+    // DEPRECATED AND NOT ENFORCED. Kept so existing documents load unchanged.
+    // An application daily quota no longer stops sending — see the header of
+    // services/rateLimit/mailboxLimiter.js. Gmail's own ~500/day (consumer) and
+    // ~2000/day (Workspace) ceilings still apply and are enforced by Google.
+    dailyLimit: { type: Number, default: null, min: 1, max: 5000 },
 
     // ── Incremental reply sync ───────────────────────────────────────────────
     // Gmail's history cursor. We ask "what changed since historyId?" — one API

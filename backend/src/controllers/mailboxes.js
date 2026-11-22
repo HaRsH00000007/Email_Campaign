@@ -116,8 +116,11 @@ const list = async (req, res) => {
       // invisible for it. Surfaced so the UI can warn rather than leaving the
       // operator wondering why nothing ever gets marked replied.
       canReadReplies: (a.grantedScopes || []).includes(oauth.SCOPE_READ),
+      // dailyLimit is deprecated and unenforced; still returned so an older
+      // client does not break on a missing field.
       dailyLimit: a.dailyLimit,
       hourlyLimit: a.hourlyLimit,
+      minSpacingMs: a.minSpacingMs,
       lastError: a.lastError || "",
       lastErrorAt: a.lastErrorAt,
       historySyncedAt: a.historySyncedAt,
@@ -129,7 +132,10 @@ const list = async (req, res) => {
   return res.json({ ok: true, data });
 };
 
-// PATCH /mailboxes/:id  { dailyLimit?, hourlyLimit? }
+// PATCH /mailboxes/:id  { minSpacingMs?, hourlyLimit? }
+//
+// dailyLimit is still ACCEPTED and ignored, so older clients get a 200 rather
+// than a confusing 400 — it no longer gates sending anywhere in the system.
 const update = async (req, res) => {
   const patch = {};
   const clamp = (v, lo, hi) => {
@@ -138,9 +144,9 @@ const update = async (req, res) => {
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : undefined;
   };
 
-  if (req.body?.dailyLimit !== undefined) {
-    const v = clamp(req.body.dailyLimit, 1, 5000);
-    if (v !== undefined) patch.dailyLimit = v;
+  if (req.body?.minSpacingMs !== undefined) {
+    const v = clamp(req.body.minSpacingMs, 0, 3_600_000);
+    if (v !== undefined) patch.minSpacingMs = v;
   }
   if (req.body?.hourlyLimit !== undefined) {
     const v = clamp(req.body.hourlyLimit, 1, 1000);
@@ -154,7 +160,14 @@ const update = async (req, res) => {
   ).lean();
 
   if (!account) return res.status(404).json({ message: "Mailbox not found" });
-  return res.json({ ok: true, data: { _id: account._id, dailyLimit: account.dailyLimit, hourlyLimit: account.hourlyLimit } });
+  return res.json({
+    ok: true,
+    data: {
+      _id: account._id,
+      hourlyLimit: account.hourlyLimit,
+      minSpacingMs: account.minSpacingMs,
+    },
+  });
 };
 
 // DELETE /mailboxes/:id

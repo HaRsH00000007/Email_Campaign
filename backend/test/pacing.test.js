@@ -101,3 +101,90 @@ test("html plus text produces multipart/alternative", () => {
   const raw = buildRaw({ to: "a@b.com", subject: "x", html: "<p>hi</p>", text: "hi" });
   assert.ok(raw.includes("multipart/alternative"));
 });
+
+// ── 60s cadence defaults and truthful projections ────────────────────────────
+
+test("the DEFAULTS deliver one email per minute, continuously", () => {
+  const p = normalizePacing({});
+  assert.strictEqual(p.minDelaySec, 60);
+  assert.strictEqual(p.maxDelaySec, 60);
+  // One batch holding the whole list, so nothing waits on a release interval.
+  assert.strictEqual(p.durationDays, 1);
+  assert.strictEqual(p.intervalHours, 24);
+
+  const s = computeSchedule(45, p, 1);
+  assert.strictEqual(s.leadsPerBatch, 45, "the whole list stages at once");
+  assert.strictEqual(s.effectivePerHour, 60, "60s gap == 60/hour");
+  assert.strictEqual(s.limitedBy, "gap");
+});
+
+test("the projection reports the REAL rate, not the gap's theoretical rate", () => {
+  // 45 leads over 5 days, one batch an hour -> leadsPerBatch rounds up to 1, so
+  // the mailbox sends once an hour and idles the other 59 minutes. The old card
+  // reported "24/day" for this; the honest answer is 1/hour.
+  const s = computeSchedule(45, {
+    durationDays: 5,
+    intervalHours: 1,
+    minDelaySec: 60,
+    maxDelaySec: 60,
+  });
+  assert.strictEqual(s.leadsPerBatch, 1);
+  assert.strictEqual(s.effectivePerHour, 1, "one per batch, one batch an hour");
+  assert.strictEqual(s.limitedBy, "batch_interval");
+  assert.strictEqual(s.batchStarves, true, "the operator should be told this idles the mailbox");
+});
+
+test("a batch interval cannot silently starve the intended cadence", () => {
+  // Same 45 leads, default pacing: finishes in 44 minutes rather than 44 hours.
+  const starved = computeSchedule(45, { durationDays: 5, intervalHours: 1 });
+  const continuous = computeSchedule(45, { durationDays: 1, intervalHours: 24 });
+
+  assert.ok(continuous.effectivePerHour > starved.effectivePerHour * 50);
+  assert.strictEqual(continuous.batchStarves, false);
+  assert.strictEqual(Math.round(continuous.estimatedRunMs / 60000), 44);
+  assert.strictEqual(Math.round(starved.estimatedRunMs / 3600000), 44);
+});
+
+test("the mailbox spacing floor overrides a shorter campaign gap", () => {
+  // Asking for a 5s gap does not produce 720/hour: the limiter will hold each
+  // send to 60s, so the projection must say 60 and name the reason.
+  const s = computeSchedule(100, {
+    durationDays: 1,
+    intervalHours: 24,
+    minDelaySec: 5,
+    maxDelaySec: 5,
+  }, 1, { mailboxSpacingMs: 60_000 });
+
+  assert.strictEqual(s.effectivePerHour, 60);
+  assert.strictEqual(s.limitedBy, "mailbox_spacing");
+  // And the run estimate follows the floor, not the wishful gap.
+  assert.strictEqual(Math.round(s.estimatedRunMs / 60000), 99);
+});
+
+test("more mailboxes raise total throughput without lowering the per-mailbox floor", () => {
+  const one = computeSchedule(600, { durationDays: 1, intervalHours: 24 }, 1, {
+    mailboxSpacingMs: 60_000,
+  });
+  const four = computeSchedule(600, { durationDays: 1, intervalHours: 24 }, 4, {
+    mailboxSpacingMs: 60_000,
+  });
+
+  assert.strictEqual(one.effectivePerHour, 60);
+  assert.strictEqual(four.effectivePerHour, 60, "the campaign gap still binds at 60/hour");
+  assert.strictEqual(four.effectivePerHourPerMailbox, 15, "each mailbox does a quarter of it");
+  // Four mailboxes have 240/hour of headroom, so a shorter gap WOULD now pay off.
+  const fast = computeSchedule(600, {
+    durationDays: 1,
+    intervalHours: 24,
+    minDelaySec: 15,
+    maxDelaySec: 15,
+  }, 4, { mailboxSpacingMs: 60_000 });
+  assert.strictEqual(fast.effectivePerHour, 240);
+});
+
+test("an empty list still produces finite projections", () => {
+  const s = computeSchedule(0, {}, 1, { mailboxSpacingMs: 60_000 });
+  assert.strictEqual(s.estimatedRunMs, 0);
+  assert.strictEqual(s.batchStarves, false);
+  assert.ok(Number.isFinite(s.effectivePerHour) || s.effectivePerHour === 0);
+});
